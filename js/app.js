@@ -279,7 +279,41 @@ class QuestionBankApp {
         document.getElementById('resultsArea').classList.add('hidden');
     }
 }
+ populateSemesterSelect(subject) {
+        const semesters = subjectStructure[subject].semesters;
+        this.semesterSelect.innerHTML = '<option value="">Select Semester</option>';
+        
+        Object.entries(semesters).forEach(([key, semester]) => {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = semester.name;
+            this.semesterSelect.appendChild(option);
+        });
+    }
 
+    populateUnitSelect(subject, semester) {
+        const units = subjectStructure[subject].semesters[semester].units;
+        this.unitSelect.innerHTML = '<option value="">Select Unit</option>';
+        
+        Object.entries(units).forEach(([key, unit]) => {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = unit.name;
+            this.unitSelect.appendChild(option);
+        });
+    }
+
+    populateLessonSelect(subject, semester, unit) {
+        const lessons = subjectStructure[subject].semesters[semester].units[unit].lessons;
+        this.lessonSelect.innerHTML = '<option value="">Select Lesson</option>';
+        
+        lessons.forEach(lesson => {
+            const option = document.createElement('option');
+            option.value = lesson;
+            option.textContent = lesson;
+            this.lessonSelect.appendChild(option);
+        });
+    }
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
     new QuestionBankApp();
