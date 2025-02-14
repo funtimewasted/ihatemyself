@@ -1,13 +1,12 @@
 // app.js
 
-// app.js - modify the import section
 import { subjectStructure } from './subjects.js';
 import { englishQuestions } from './questions/english.js';
 import { arabicQuestions } from './questions/arabic.js';
 import { historyQuestions } from './questions/history.js';
 import { islamicQuestions } from './questions/islamic.js';
 
-// Add this after the imports
+// Question bank mapping
 const questionBank = {
     english: englishQuestions,
     arabic: arabicQuestions,
@@ -24,6 +23,7 @@ class QuestionBankApp {
         this.lessonSelect = document.getElementById('lessonSelect');
         this.questionArea = document.getElementById('questionArea');
         this.questionContent = document.getElementById('questionContent');
+        this.resultsArea = document.getElementById('resultsArea');
         
         // State
         this.currentQuestions = [];
@@ -36,15 +36,96 @@ class QuestionBankApp {
     }
 
     initializeEventListeners() {
+        // Dropdown event listeners
         this.subjectSelect.addEventListener('change', () => this.handleSubjectChange());
         this.semesterSelect.addEventListener('change', () => this.handleSemesterChange());
         this.unitSelect.addEventListener('change', () => this.handleUnitChange());
         this.lessonSelect.addEventListener('change', () => this.handleLessonChange());
         
         // Button event listeners
-        document.getElementById('submitBtn').addEventListener('click', () => this.submitAnswer());
-        document.getElementById('nextBtn').addEventListener('click', () => this.showNextQuestion());
-        document.getElementById('restartBtn').addEventListener('click', () => this.restartQuiz());
+        const submitBtn = document.getElementById('submitBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const restartBtn = document.getElementById('restartBtn');
+
+        if (submitBtn) submitBtn.addEventListener('click', () => this.submitAnswer());
+        if (nextBtn) nextBtn.addEventListener('click', () => this.showNextQuestion());
+        if (restartBtn) restartBtn.addEventListener('click', () => this.restartQuiz());
+
+        // Initialize filter buttons if they exist
+        const filterButtons = document.querySelectorAll('.filter-btn');
+        filterButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => this.handleFilterClick(e));
+        });
+    }
+
+    handleFilterClick(e) {
+        const buttons = document.querySelectorAll('.filter-btn');
+        buttons.forEach(btn => btn.classList.remove('active'));
+        e.target.classList.add('active');
+        
+        const filterType = e.target.dataset.type;
+        this.filterQuestions(filterType);
+    }
+
+    filterQuestions(type) {
+        if (type === 'all') {
+            this.showQuestion();
+            return;
+        }
+
+        const filteredQuestions = this.currentQuestions.filter(q => q.type === type);
+        if (filteredQuestions.length > 0) {
+            this.currentQuestions = filteredQuestions;
+            this.currentQuestionIndex = 0;
+            this.showQuestion();
+        } else {
+            this.showErrorMessage(`No ${type} questions available`);
+        }
+    }
+
+    showErrorMessage(message) {
+        const messageBox = document.createElement('div');
+        messageBox.className = 'message-box';
+        messageBox.textContent = message;
+        this.questionContent.innerHTML = '';
+        this.questionContent.appendChild(messageBox);
+        this.questionArea.classList.remove('hidden');
+    }
+
+    populateSemesterSelect(subject) {
+        const semesters = subjectStructure[subject].semesters;
+        this.semesterSelect.innerHTML = '<option value="">Select Semester</option>';
+        
+        Object.entries(semesters).forEach(([key, semester]) => {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = semester.name;
+            this.semesterSelect.appendChild(option);
+        });
+    }
+
+    populateUnitSelect(subject, semester) {
+        const units = subjectStructure[subject].semesters[semester].units;
+        this.unitSelect.innerHTML = '<option value="">Select Unit</option>';
+        
+        Object.entries(units).forEach(([key, unit]) => {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = unit.name;
+            this.unitSelect.appendChild(option);
+        });
+    }
+
+    populateLessonSelect(subject, semester, unit) {
+        const lessons = subjectStructure[subject].semesters[semester].units[unit].lessons;
+        this.lessonSelect.innerHTML = '<option value="">Select Lesson</option>';
+        
+        lessons.forEach(lesson => {
+            const option = document.createElement('option');
+            option.value = lesson;
+            option.textContent = lesson;
+            this.lessonSelect.appendChild(option);
+        });
     }
 
     handleSubjectChange() {
@@ -97,27 +178,42 @@ class QuestionBankApp {
 
     loadQuestions(subject, semester, unit, lesson) {
         try {
+            if (!questionBank[subject]?.[semester]?.[unit]?.[lesson]?.questions) {
+                throw new Error('Questions not found for this selection');
+            }
+            
             this.currentQuestions = questionBank[subject][semester][unit][lesson].questions;
+            
+            if (!Array.isArray(this.currentQuestions) || this.currentQuestions.length === 0) {
+                throw new Error('No questions available for this selection');
+            }
+
             this.currentQuestionIndex = 0;
             this.score = 0;
             this.startTime = new Date();
             this.showQuestion();
         } catch (error) {
             console.error('Error loading questions:', error);
-            this.showErrorMessage('Error loading questions. Please try again.');
+            this.showErrorMessage(error.message || 'Error loading questions. Please try another selection.');
         }
     }
 
     showQuestion() {
         const question = this.currentQuestions[this.currentQuestionIndex];
         this.questionArea.classList.remove('hidden');
+        this.resultsArea.classList.add('hidden');
 
-        document.getElementById('lessonTitle').textContent = this.lessonSelect.value;
+        document.getElementById('lessonTitle').textContent = this.lessonSelect.options[this.lessonSelect.selectedIndex].text;
         document.getElementById('questionCounter').textContent = 
             `Question ${this.currentQuestionIndex + 1} of ${this.currentQuestions.length}`;
 
-        const questionContent = document.getElementById('questionContent');
-        questionContent.innerHTML = this.createQuestionHTML(question);
+        this.questionContent.innerHTML = this.createQuestionHTML(question);
+
+        // Reattach event listeners for the new buttons
+        const submitBtn = document.getElementById('submitBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        if (submitBtn) submitBtn.addEventListener('click', () => this.submitAnswer());
+        if (nextBtn) nextBtn.addEventListener('click', () => this.showNextQuestion());
     }
 
     createQuestionHTML(question) {
@@ -245,8 +341,8 @@ class QuestionBankApp {
         const minutes = Math.floor(timeSpent / 60);
         const seconds = timeSpent % 60;
 
-        document.getElementById('questionArea').classList.add('hidden');
-        document.getElementById('resultsArea').classList.remove('hidden');
+        this.questionArea.classList.add('hidden');
+        this.resultsArea.classList.remove('hidden');
         
         document.getElementById('finalScore').textContent = 
             `${Math.round((this.score / this.currentQuestions.length) * 100)}%`;
@@ -276,44 +372,10 @@ class QuestionBankApp {
 
     hideQuestions() {
         this.questionArea.classList.add('hidden');
-        document.getElementById('resultsArea').classList.add('hidden');
+        this.resultsArea.classList.add('hidden');
     }
 }
- populateSemesterSelect(subject) {
-        const semesters = subjectStructure[subject].semesters;
-        this.semesterSelect.innerHTML = '<option value="">Select Semester</option>';
-        
-        Object.entries(semesters).forEach(([key, semester]) => {
-            const option = document.createElement('option');
-            option.value = key;
-            option.textContent = semester.name;
-            this.semesterSelect.appendChild(option);
-        });
-    }
 
-    populateUnitSelect(subject, semester) {
-        const units = subjectStructure[subject].semesters[semester].units;
-        this.unitSelect.innerHTML = '<option value="">Select Unit</option>';
-        
-        Object.entries(units).forEach(([key, unit]) => {
-            const option = document.createElement('option');
-            option.value = key;
-            option.textContent = unit.name;
-            this.unitSelect.appendChild(option);
-        });
-    }
-
-    populateLessonSelect(subject, semester, unit) {
-        const lessons = subjectStructure[subject].semesters[semester].units[unit].lessons;
-        this.lessonSelect.innerHTML = '<option value="">Select Lesson</option>';
-        
-        lessons.forEach(lesson => {
-            const option = document.createElement('option');
-            option.value = lesson;
-            option.textContent = lesson;
-            this.lessonSelect.appendChild(option);
-        });
-    }
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
     new QuestionBankApp();
